@@ -1,25 +1,26 @@
 # sharded-lru-cache
 
-Context & Usage
+## Context & Usage
 - The Users: Other backend services (e.g., a microservice needing to cache database results or API responses).
 - The Use Case: High-throughput systems where a single global lock would become a bottleneck (e.g., a session store or a metadata cache).
-- Scalability: * Throughput: Designed for 100k+ requests per second.
+- Scalability: 
+  - Throughput: Designed for 100k+ requests per second.
   - Data Volume: Typically gigabytes of RAM.
   - Payloads: Small to medium objects (JSON blobs, protobufs).
 
-Minimum Viable Product (MVP)
+## Minimum Viable Product (MVP)
 1. LRU Logic: A doubly linked list 🔗 combined with a hash map 🗺️ for $O(1)$ access and eviction.
 2. Sharding Strategy: A hashing function (like fnv64a) to map keys to specific shards.
 3. Concurrency Control: Using sync.RWMutex per shard to allow concurrent reads.
 4. Basic API: Get(key), Set(key, value, TTL), and Delete(key).
 
-Roadmap
+## Roadmap
 1. Implement the Doubly Linked List and Hash Map manually (don't just use container/list). This is where you conquer your fear of pointers and memory allocation.
 2. Benchmarking and Profiling. Use go test -bench and pprof to generate flame graphs. See exactly how much time the Garbage Collector spends cleaning up your evicted nodes.
 3. Add the Sharding logic. Implement a hashing algorithm (like FNV-1a) to distribute keys.
 4. Benchmarking and Profilin again.
 
-Optional Enhancements
+## Optional Enhancements
 - TTL (Time-to-Live): Automatically expiring keys after a duration.
 - Prometheus Metrics: Tracking hit/miss ratios and eviction counts 📊.
 - Custom Serialization: Supporting gob or protobuf for cross-network compatibility.
