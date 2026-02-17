@@ -15,44 +15,56 @@ type LRU[K comparable, V any] struct {
 }
 
 func (c *LRU[K, V]) Get(key K) (V, bool) {
-	var node *Node[K, V]
-
 	node, found := c.nodesMap[key]
 	if !found {
-		return node.Value, false
+		var zero V
+		return zero, false
 	}
-	c.moveToFront(node)
+	c.extract(node)
+	c.pushFront(node)
 
 	return node.Value, true
 }
 
 func (c *LRU[K, V]) Set(key K, value V) {
-	node, found := c.nodesMap[key]
-	if found {
-		c.moveToFront(node)
-		c.nodesMap[key].Value = value
+	if node, found := c.nodesMap[key]; found {
+		node.Value = value
+		c.extract(node)
+		c.pushFront(node)
 		return
+	}
+
+	if c.capacity >= len(c.nodesMap) {
+		c.evict()
 	}
 
 	newNode := &Node[K, V]{Key: key, Value: value}
-	if c.capacity >= len(c.nodesMap) {
-		c.evict()
-		c.capacity--
-	}
-	c.capacity++
 	c.nodesMap[key] = newNode
-	c.moveToFront(node)
+	c.pushFront(newNode)
 }
 
-func (c *LRU[K, V]) moveToFront(node *Node[K, V]) {
-	if c.tail == nil {
-		c.tail = node
-		c.head = node
-		return
+func (c *LRU[K, V]) extract(node *Node[K, V]) {
+	if node.Prev != nil {
+		node.Prev.Next = node.Next
+	} else {
+		c.head = node.Next // node was the head
 	}
-	oldHead := c.head
-	node.Next = oldHead
-	oldHead.Prev = node
+
+	if node.Next != nil {
+		node.Next.Prev = node.Prev
+	} else {
+		c.tail = node.Prev // node was the tail
+	}
+
+	node.Next = nil
+	node.Prev = nil
+}
+
+func (c *LRU[K, V]) pushFront(node *Node[K, V]) {
+	if oldHead := c.head; oldHead != nil {
+		oldHead.Prev = node
+		node.Next = oldHead
+	}
 	c.head = node
 }
 
