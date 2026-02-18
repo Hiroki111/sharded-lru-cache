@@ -34,7 +34,7 @@ func (c *LRU[K, V]) Set(key K, value V) {
 		return
 	}
 
-	if c.capacity >= len(c.nodesMap) {
+	if len(c.nodesMap) >= c.capacity {
 		c.evict()
 	}
 
@@ -61,11 +61,17 @@ func (c *LRU[K, V]) extract(node *Node[K, V]) {
 }
 
 func (c *LRU[K, V]) pushFront(node *Node[K, V]) {
-	if oldHead := c.head; oldHead != nil {
-		oldHead.Prev = node
-		node.Next = oldHead
+	node.Next = c.head
+	node.Prev = nil
+
+	if c.head != nil {
+		c.head.Prev = node
 	}
 	c.head = node
+
+	if c.tail == nil {
+		c.tail = node
+	}
 }
 
 func (c *LRU[K, V]) evict() {
@@ -73,7 +79,14 @@ func (c *LRU[K, V]) evict() {
 		return
 	}
 
-	oldTail := c.tail
-	delete(c.nodesMap, oldTail.Key)
-	c.tail = oldTail.Prev
+	delete(c.nodesMap, c.tail.Key)
+
+	if c.head == c.tail {
+		c.head = nil
+		c.tail = nil
+		return
+	}
+
+	c.tail = c.tail.Prev
+	c.tail.Next = nil
 }
