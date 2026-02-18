@@ -27,6 +27,24 @@ func TestLRU_SetAndGet(t *testing.T) {
 	}
 }
 
+func TestLRU_ConcurrentSet(t *testing.T) {
+	cache := NewLRUCache[string, int](2)
+
+	go func() {
+		cache.Set("a", 1)
+	}()
+
+	go func() {
+		cache.Set("a", 2)
+	}()
+
+	defer func() {
+		if _, ok := cache.Get("a"); !ok {
+			t.Errorf("Expected ok")
+		}
+	}()
+}
+
 func BenchmarkLRU_Set(b *testing.B) {
 	cache := NewLRUCache[int, int](1000)
 	b.ResetTimer() // Don't count the setup time

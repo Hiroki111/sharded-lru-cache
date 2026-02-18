@@ -38,3 +38,15 @@
 ├── go.mod
 └── README.md
 ```
+
+## Benchmark
+
+Before introducing sharding
+```
+go test -bench=. ./internal/lru/
+goos: linux
+goarch: amd64
+pkg: github.com/Hiroki111/sharded-lru-cache/internal/lru
+cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
+BenchmarkLRU_Set-4      13053570                92.61 ns/op
+```
