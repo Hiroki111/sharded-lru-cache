@@ -14,8 +14,8 @@ type LRU[K comparable, V any] struct {
 	tail     *Node[K, V]
 }
 
-func NewLRUCache[K comparable, V any](capacity int) LRU[K, V] {
-	return LRU[K, V]{
+func NewLRUCache[K comparable, V any](capacity int) *LRU[K, V] {
+	return &LRU[K, V]{
 		capacity: capacity,
 		nodesMap: make(map[K]*Node[K, V]),
 	}
