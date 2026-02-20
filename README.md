@@ -41,7 +41,7 @@
 
 ## Benchmark
 
-Before introducing sharding
+LRU Cache
 ```
 go test -bench=. ./internal/lru/
 goos: linux
@@ -49,4 +49,31 @@ goarch: amd64
 pkg: github.com/Hiroki111/sharded-lru-cache/internal/lru
 cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
 BenchmarkLRU_Set-4      13053570                92.61 ns/op
+```
+
+Sharded LRU Cache - 1 shard
+```
+goos: linux
+goarch: amd64
+pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
+cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
+BenchmarkShardedCache_Parallel-4         2758726               459.9 ns/op
+```
+
+Sharded LRU Cache - 32 shards
+```
+goos: linux
+goarch: amd64
+pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
+cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
+BenchmarkShardedCache_Parallel-4         5563995               219.2 ns/op
+```
+
+Sharded LRU Cache - 1024 shards
+```
+goos: linux
+goarch: amd64
+pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
+cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
+BenchmarkShardedCache_Parallel-4         5569131               239.1 ns/op
 ```

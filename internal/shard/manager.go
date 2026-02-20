@@ -1,6 +1,8 @@
 package shard
 
 import (
+	"encoding/binary"
+	"fmt"
 	"hash/fnv"
 	"sync"
 
@@ -32,7 +34,7 @@ func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int) *Ca
 }
 
 func (m *CacheManager[K, V]) Get(key K) (V, bool) {
-	shard := m.getShard(any(key).(string))
+	shard := m.getShard(key)
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
@@ -40,16 +42,25 @@ func (m *CacheManager[K, V]) Get(key K) (V, bool) {
 }
 
 func (m *CacheManager[K, V]) Set(key K, value V) {
-	shard := m.getShard(any(key).(string))
+	shard := m.getShard(key)
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 	shard.cache.Set(key, value)
 }
 
-func (m *CacheManager[K, V]) getShard(key string) *Shard[K, V] {
+func (m *CacheManager[K, V]) getShard(key K) *Shard[K, V] {
 	h := fnv.New32a()
-	h.Write([]byte(key))
+
+	switch v := any(key).(type) {
+	case string:
+		h.Write([]byte(v))
+	case int:
+		binary.Write(h, binary.LittleEndian, int64(v))
+	default:
+		h.Write([]byte(fmt.Sprintf("%v", v)))
+	}
+
 	hash := h.Sum32()
 	return m.shads[hash%m.shardCount]
 }
