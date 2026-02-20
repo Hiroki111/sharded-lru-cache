@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sync"
+	"time"
 
 	"github.com/Hiroki111/sharded-lru-cache/internal/lru"
 )
@@ -41,12 +42,12 @@ func (m *CacheManager[K, V]) Get(key K) (V, bool) {
 	return shard.cache.Get(key)
 }
 
-func (m *CacheManager[K, V]) Set(key K, value V) {
+func (m *CacheManager[K, V]) Set(key K, value V, ttl time.Duration) {
 	shard := m.getShard(key)
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	shard.cache.Set(key, value)
+	shard.cache.Set(key, value, ttl)
 }
 
 func (m *CacheManager[K, V]) getShard(key K) *Shard[K, V] {

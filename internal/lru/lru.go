@@ -1,10 +1,13 @@
 package lru
 
+import "time"
+
 type Node[K comparable, V any] struct {
-	Key   K
-	Value V
-	Prev  *Node[K, V]
-	Next  *Node[K, V]
+	Key       K
+	Value     V
+	Prev      *Node[K, V]
+	Next      *Node[K, V]
+	ExpiresAt time.Time
 }
 
 type LRU[K comparable, V any] struct {
@@ -22,18 +25,23 @@ func NewLRUCache[K comparable, V any](capacity int) *LRU[K, V] {
 }
 
 func (c *LRU[K, V]) Get(key K) (V, bool) {
+	var emptyValue V
 	node, found := c.nodesMap[key]
 	if !found {
-		var zero V
-		return zero, false
+		return emptyValue, false
 	}
+
+	if time.Now().After(node.ExpiresAt) {
+		return emptyValue, false
+	}
+
 	c.extract(node)
 	c.pushFront(node)
 
 	return node.Value, true
 }
 
-func (c *LRU[K, V]) Set(key K, value V) {
+func (c *LRU[K, V]) Set(key K, value V, ttl time.Duration) {
 	if node, found := c.nodesMap[key]; found {
 		node.Value = value
 		c.extract(node)
@@ -45,7 +53,7 @@ func (c *LRU[K, V]) Set(key K, value V) {
 		c.evict()
 	}
 
-	newNode := &Node[K, V]{Key: key, Value: value}
+	newNode := &Node[K, V]{Key: key, Value: value, ExpiresAt: time.Now().Add(ttl)}
 	c.nodesMap[key] = newNode
 	c.pushFront(newNode)
 }
