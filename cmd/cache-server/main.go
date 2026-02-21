@@ -42,9 +42,18 @@ func (s *Server) handleSet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "stored"})
 }
 
-// TODO: Implement this
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
 
+	value, found := s.cache.Get(key)
+	if !found {
+		http.Error(w, "Value not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"value": value})
 }
 
 func main() {
