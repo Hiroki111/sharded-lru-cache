@@ -17,17 +17,19 @@ type Shard[K comparable, V any] struct {
 
 type CacheManager[K comparable, V any] struct {
 	shardCount uint32
-	shads      []*Shard[K, V]
+	shards     []*Shard[K, V]
+	stopChan   chan struct{}
 }
 
 func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int) *CacheManager[K, V] {
 	m := &CacheManager[K, V]{
 		shardCount: uint32(shardCount),
-		shads:      make([]*Shard[K, V], shardCount),
+		shards:     make([]*Shard[K, V], shardCount),
+		stopChan:   make(chan struct{}),
 	}
 
 	for i := 0; i < shardCount; i++ {
-		m.shads[i] = &Shard[K, V]{
+		m.shards[i] = &Shard[K, V]{
 			cache: lru.NewLRUCache[K, V](shardCapacity),
 		}
 	}
@@ -50,6 +52,26 @@ func (m *CacheManager[K, V]) Set(key K, value V, ttl time.Duration) {
 	shard.cache.Set(key, value, ttl)
 }
 
+func (m *CacheManager[K, V]) StartJanitor(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				m.cleanup()
+			case <-m.stopChan:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+func (m *CacheManager[K, V]) Stop() {
+	m.stopChan <- struct{}{}
+	close(m.stopChan)
+}
+
 func (m *CacheManager[K, V]) getShard(key K) *Shard[K, V] {
 	h := fnv.New32a()
 
@@ -63,5 +85,13 @@ func (m *CacheManager[K, V]) getShard(key K) *Shard[K, V] {
 	}
 
 	hash := h.Sum32()
-	return m.shads[hash%m.shardCount]
+	return m.shards[hash%m.shardCount]
+}
+
+func (m *CacheManager[K, V]) cleanup() {
+	for _, shard := range m.shards {
+		shard.mu.Lock()
+		shard.cache.DeleteExpired()
+		shard.mu.Unlock()
+	}
 }

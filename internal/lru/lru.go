@@ -58,6 +58,16 @@ func (c *LRU[K, V]) Set(key K, value V, ttl time.Duration) {
 	c.pushFront(newNode)
 }
 
+func (c *LRU[K, V]) DeleteExpired() {
+	now := time.Now()
+	for key, node := range c.nodesMap {
+		if now.After(node.ExpiresAt) {
+			c.extract(node)
+			delete(c.nodesMap, key)
+		}
+	}
+}
+
 func (c *LRU[K, V]) extract(node *Node[K, V]) {
 	if node.Prev != nil {
 		node.Prev.Next = node.Next
