@@ -39,6 +39,25 @@
 └── README.md
 ```
 
+## How to test by REST
+
+```
+# Run the server
+go run cmd/cache-server/main.go
+
+# Open another terminal
+
+# Set a value
+curl -X POST http://localhost:8080/set \
+     -d '{"key": "golang", "value": "is awesome", "ttl": 10}'
+
+# Get the value
+curl "http://localhost:8080/get?key=golang"
+
+# Get stats
+curl "http://localhost:8080/stats"
+```
+
 ## Benchmark
 
 LRU Cache

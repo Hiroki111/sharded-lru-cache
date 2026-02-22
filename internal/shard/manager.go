@@ -67,6 +67,18 @@ func (m *CacheManager[K, V]) StartJanitor(interval time.Duration) {
 	}()
 }
 
+func (m *CacheManager[K, V]) GetStats() lru.Stats {
+	var total lru.Stats
+	for _, shard := range m.shards {
+		shard.mu.RLock()
+		total.Hits += shard.cache.Stats().Hits
+		total.Misses += shard.cache.Stats().Misses
+		total.Evictions += shard.cache.Stats().Evictions
+		shard.mu.RUnlock()
+	}
+	return total
+}
+
 func (m *CacheManager[K, V]) Stop() {
 	m.stopChan <- struct{}{}
 	close(m.stopChan)

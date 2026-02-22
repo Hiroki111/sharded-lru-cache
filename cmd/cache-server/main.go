@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -56,6 +57,24 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"value": value})
 }
 
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	stats := s.cache.GetStats()
+
+	var hitRate float64
+	totalRequests := stats.Hits + stats.Misses
+	if totalRequests > 0 {
+		hitRate = (float64(stats.Hits) / float64(totalRequests)) * 100
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"hits":      stats.Hits,
+		"misses":    stats.Misses,
+		"evictions": stats.Evictions,
+		"hit_rate":  fmt.Sprintf("%.2f%%", hitRate),
+	})
+}
+
 func main() {
 	mgr := shard.NewCacheManager[string, string](32, 1024)
 	mgr.StartJanitor(10 * time.Second)
@@ -64,6 +83,7 @@ func main() {
 
 	http.HandleFunc("/get", srv.handleGet)
 	http.HandleFunc("/set", srv.handleSet)
+	http.HandleFunc("/stats", srv.handleStats)
 
 	println("Server starting on :8080...")
 	http.ListenAndServe(":8080", nil)

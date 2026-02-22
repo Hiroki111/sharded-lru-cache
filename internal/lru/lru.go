@@ -10,11 +10,18 @@ type Node[K comparable, V any] struct {
 	ExpiresAt time.Time
 }
 
+type Stats struct {
+	Hits      uint64
+	Misses    uint64
+	Evictions uint64
+}
+
 type LRU[K comparable, V any] struct {
 	capacity int
 	nodesMap map[K]*Node[K, V]
 	head     *Node[K, V]
 	tail     *Node[K, V]
+	stats    Stats
 }
 
 func NewLRUCache[K comparable, V any](capacity int) *LRU[K, V] {
@@ -28,16 +35,19 @@ func (c *LRU[K, V]) Get(key K) (V, bool) {
 	var emptyValue V
 	node, found := c.nodesMap[key]
 	if !found {
+		c.stats.Misses++
 		return emptyValue, false
 	}
 
 	if time.Now().After(node.ExpiresAt) {
+		c.stats.Misses++
 		return emptyValue, false
 	}
 
 	c.extract(node)
 	c.pushFront(node)
 
+	c.stats.Hits++
 	return node.Value, true
 }
 
@@ -66,6 +76,10 @@ func (c *LRU[K, V]) DeleteExpired() {
 			delete(c.nodesMap, key)
 		}
 	}
+}
+
+func (c *LRU[K, V]) Stats() Stats {
+	return c.stats
 }
 
 func (c *LRU[K, V]) extract(node *Node[K, V]) {
@@ -105,6 +119,7 @@ func (c *LRU[K, V]) evict() {
 	}
 
 	delete(c.nodesMap, c.tail.Key)
+	c.stats.Evictions++
 
 	if c.head == c.tail {
 		c.head = nil
