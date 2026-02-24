@@ -1,9 +1,11 @@
 package shard
 
 import (
-	"encoding/binary"
+	"bufio"
 	"fmt"
-	"hash/fnv"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,13 +21,19 @@ type CacheManager[K comparable, V any] struct {
 	shardCount uint32
 	shards     []*Shard[K, V]
 	stopChan   chan struct{}
+	hashRing   *HashRing
+	aof        *os.File
 }
 
-func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int) *CacheManager[K, V] {
+func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string) *CacheManager[K, V] {
+	f, _ := os.OpenFile(aofPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+
 	m := &CacheManager[K, V]{
 		shardCount: uint32(shardCount),
 		shards:     make([]*Shard[K, V], shardCount),
 		stopChan:   make(chan struct{}),
+		hashRing:   NewHashRing(shardCount, shardReplica),
+		aof:        f,
 	}
 
 	for i := 0; i < shardCount; i++ {
@@ -48,8 +56,14 @@ func (m *CacheManager[K, V]) Set(key K, value V, ttl time.Duration) {
 	shard := m.getShard(key)
 
 	shard.mu.Lock()
-	defer shard.mu.Unlock()
 	shard.cache.Set(key, value, ttl)
+	shard.mu.Unlock()
+
+	if m.aof != nil {
+		expiry := time.Now().Add(ttl).Unix()
+		line := fmt.Sprintf("SET|%v|%v|%d\n", key, value, expiry)
+		m.aof.WriteString(line)
+	}
 }
 
 func (m *CacheManager[K, V]) StartJanitor(interval time.Duration) {
@@ -84,20 +98,53 @@ func (m *CacheManager[K, V]) Stop() {
 	close(m.stopChan)
 }
 
+func (m *CacheManager[K, V]) LoadAOF() error {
+	if m.aof == nil {
+		return nil
+	}
+	// Seek to the beginning of the file
+	m.aof.Seek(0, 0)
+	scanner := bufio.NewScanner(m.aof)
+	for scanner.Scan() {
+		parts := strings.Split(scanner.Text(), "|")
+		if len(parts) != 4 {
+			continue
+		}
+
+		key := parts[1]
+		val := parts[2]
+		expiry, _ := strconv.ParseInt(parts[3], 10, 64)
+
+		// Calculate remaining TTL
+		remaining := time.Unix(expiry, 0).Sub(time.Now())
+		if remaining > 0 {
+			m.setInternal(any(key).(K), any(val).(V), remaining)
+		}
+	}
+	return nil
+}
+
+func (m *CacheManager[K, V]) setInternal(key K, value V, ttl time.Duration) {
+	shard := m.getShard(key)
+
+	shard.mu.Lock()
+	shard.cache.Set(key, value, ttl)
+	shard.mu.Unlock()
+}
+
 func (m *CacheManager[K, V]) getShard(key K) *Shard[K, V] {
-	h := fnv.New32a()
+	var shardIndex int
 
 	switch v := any(key).(type) {
 	case string:
-		h.Write([]byte(v))
+		shardIndex = m.hashRing.GetShardIndex(v)
 	case int:
-		binary.Write(h, binary.LittleEndian, int64(v))
+		shardIndex = m.hashRing.GetShardIndex(strconv.Itoa(v))
 	default:
-		h.Write([]byte(fmt.Sprintf("%v", v)))
+		shardIndex = m.hashRing.GetShardIndex(fmt.Sprintf("%v", v))
 	}
 
-	hash := h.Sum32()
-	return m.shards[hash%m.shardCount]
+	return m.shards[shardIndex]
 }
 
 func (m *CacheManager[K, V]) cleanup() {
