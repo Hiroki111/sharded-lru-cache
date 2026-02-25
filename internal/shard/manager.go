@@ -26,7 +26,10 @@ type CacheManager[K comparable, V any] struct {
 }
 
 func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string) *CacheManager[K, V] {
-	f, _ := os.OpenFile(aofPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+	var f *os.File
+	if aofPath != "" {
+		f, _ = os.OpenFile(aofPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+	}
 
 	m := &CacheManager[K, V]{
 		shardCount: uint32(shardCount),
@@ -94,8 +97,12 @@ func (m *CacheManager[K, V]) GetStats() lru.Stats {
 }
 
 func (m *CacheManager[K, V]) Stop() {
-	m.stopChan <- struct{}{}
 	close(m.stopChan)
+
+	if m.aof != nil {
+		m.aof.Sync()
+		m.aof.Close()
+	}
 }
 
 func (m *CacheManager[K, V]) LoadAOF() error {
@@ -111,14 +118,22 @@ func (m *CacheManager[K, V]) LoadAOF() error {
 			continue
 		}
 
-		key := parts[1]
-		val := parts[2]
+		keyStr := parts[1]
+		valStr := parts[2]
 		expiry, _ := strconv.ParseInt(parts[3], 10, 64)
 
 		// Calculate remaining TTL
 		remaining := time.Unix(expiry, 0).Sub(time.Now())
 		if remaining > 0 {
-			m.setInternal(any(key).(K), any(val).(V), remaining)
+			// Use a type switch to safely convert from AOF string to the Generic type
+			var k K
+			var v V
+
+			// This is a bit of a hack for Generics, but it works for basic types
+			fmt.Sscan(keyStr, &k)
+			fmt.Sscan(valStr, &v)
+
+			m.setInternal(k, v, remaining)
 		}
 	}
 	return nil
