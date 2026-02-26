@@ -31,22 +31,23 @@ func NewHashRing(shardCount int, replicas int) *HashRing {
 	return hr
 }
 
-func (hr *HashRing) GetShardIndex(key string, shardCount int) int {
+func (hr *HashRing) GetShardIndex(key string) int {
 	if len(hr.shards) == 0 {
 		return 0
 	}
 
 	hash := hr.hash(key)
 	// Find the first shard hash >= key hash (binary search)
-	shardIndex := sort.Search(len(hr.shards), func(i int) bool {
+	nearestNodeIndex := sort.Search(len(hr.shards), func(i int) bool {
 		return hr.shards[i] >= hash
 	})
 
-	if shardIndex == len(hr.shards) {
-		shardIndex = 0
+	if nearestNodeIndex == len(hr.shards) {
+		nearestNodeIndex = 0
 	}
 
-	return hr.mapHashToShardIndex[hr.shards[shardIndex]]
+	hashInRing := hr.shards[nearestNodeIndex]
+	return hr.mapHashToShardIndex[hashInRing]
 }
 
 func (hr *HashRing) hash(key string) uint32 {
