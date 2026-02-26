@@ -76,7 +76,12 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	mgr := shard.NewCacheManager[string, string](32, 1024, 3, "/path/to/aof")
+	mgr := shard.NewCacheManager[string, string](32, 1024, 3, "cache.aof")
+
+	if err := mgr.LoadAOF(); err != nil {
+		fmt.Println("Warning: Couldn't load AOF: %v\v", err)
+	}
+
 	mgr.StartJanitor(10 * time.Second)
 	mgr.StartAofSyncer()
 
