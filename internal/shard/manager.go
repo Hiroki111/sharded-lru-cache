@@ -23,12 +23,16 @@ type CacheManager[K comparable, V any] struct {
 	stopChan   chan struct{}
 	hashRing   *HashRing
 	aof        *os.File
+	writer     *bufio.Writer
+	mu         sync.RWMutex
 }
 
 func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string) *CacheManager[K, V] {
 	var f *os.File
+	var w *bufio.Writer
 	if aofPath != "" {
 		f, _ = os.OpenFile(aofPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		w = bufio.NewWriter(f)
 	}
 
 	m := &CacheManager[K, V]{
@@ -37,6 +41,7 @@ func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, sha
 		stopChan:   make(chan struct{}),
 		hashRing:   NewHashRing(shardCount, shardReplica),
 		aof:        f,
+		writer:     w,
 	}
 
 	for i := 0; i < shardCount; i++ {
@@ -65,7 +70,10 @@ func (m *CacheManager[K, V]) Set(key K, value V, ttl time.Duration) {
 	if m.aof != nil {
 		expiry := time.Now().Add(ttl).Unix()
 		line := fmt.Sprintf("SET|%v|%v|%d\n", key, value, expiry)
-		m.aof.WriteString(line)
+
+		m.mu.Lock()
+		m.writer.WriteString(line)
+		m.mu.Unlock()
 	}
 }
 
@@ -78,6 +86,27 @@ func (m *CacheManager[K, V]) StartJanitor(interval time.Duration) {
 				m.cleanup()
 			case <-m.stopChan:
 				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+func (m *CacheManager[K, V]) StartAofSyncer() {
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if m.writer != nil {
+					m.mu.Lock()
+					m.writer.Flush()
+					m.aof.Sync()
+					m.mu.Unlock()
+				}
+			case <-m.stopChan:
 				return
 			}
 		}
