@@ -78,6 +78,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mgr := shard.NewCacheManager[string, string](32, 1024, 3, "/path/to/aof")
 	mgr.StartJanitor(10 * time.Second)
+	mgr.StartAofSyncer()
 
 	srv := &Server{cache: mgr}
 
