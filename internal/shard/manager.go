@@ -2,6 +2,7 @@ package shard
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -71,11 +72,16 @@ func (m *CacheManager[K, V]) Set(key K, value V, ttl time.Duration) {
 	if m.writer != nil {
 		kBuf, _ := json.Marshal(key)
 		vBuf, _ := json.Marshal(value)
+
+		// Encode to Base64 to keep the AOF line clean
+		kEnc := base64.StdEncoding.EncodeToString(kBuf)
+		vEnc := base64.StdEncoding.EncodeToString(vBuf)
+
 		expiry := time.Now().Add(ttl).Unix()
+		line := fmt.Sprintf("SET|%s|%s|%d\n", kEnc, vEnc, expiry)
 
 		m.mu.Lock()
-		// Format: SET|base64_key|base64_val|expiry
-		fmt.Fprintf(m.writer, "SET|%s|%s|%d\n", kBuf, vBuf, expiry)
+		m.writer.WriteString(line)
 		m.mu.Unlock()
 	}
 }
@@ -150,10 +156,13 @@ func (m *CacheManager[K, V]) LoadAOF() error {
 			continue
 		}
 
+		kBuf, _ := base64.StdEncoding.DecodeString(parts[1])
+		vBuf, _ := base64.StdEncoding.DecodeString(parts[2])
+
 		var k K
 		var v V
-		json.Unmarshal([]byte(parts[1]), &k)
-		json.Unmarshal([]byte(parts[2]), &v)
+		json.Unmarshal(kBuf, &k)
+		json.Unmarshal(vBuf, &v)
 
 		expiry, _ := strconv.ParseInt(parts[3], 10, 64)
 		remaining := time.Unix(expiry, 0).Sub(time.Now())
