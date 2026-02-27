@@ -2,6 +2,7 @@ package shard
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -67,12 +68,14 @@ func (m *CacheManager[K, V]) Set(key K, value V, ttl time.Duration) {
 	shard.cache.Set(key, value, ttl)
 	shard.mu.Unlock()
 
-	if m.aof != nil {
+	if m.writer != nil {
+		kBuf, _ := json.Marshal(key)
+		vBuf, _ := json.Marshal(value)
 		expiry := time.Now().Add(ttl).Unix()
-		line := fmt.Sprintf("SET|%v|%v|%d\n", key, value, expiry)
 
 		m.mu.Lock()
-		m.writer.WriteString(line)
+		// Format: SET|base64_key|base64_val|expiry
+		fmt.Fprintf(m.writer, "SET|%s|%s|%d\n", kBuf, vBuf, expiry)
 		m.mu.Unlock()
 	}
 }
@@ -147,21 +150,15 @@ func (m *CacheManager[K, V]) LoadAOF() error {
 			continue
 		}
 
-		keyStr := parts[1]
-		valStr := parts[2]
+		var k K
+		var v V
+		json.Unmarshal([]byte(parts[1]), &k)
+		json.Unmarshal([]byte(parts[2]), &v)
+
 		expiry, _ := strconv.ParseInt(parts[3], 10, 64)
-
-		// Calculate remaining TTL
 		remaining := time.Unix(expiry, 0).Sub(time.Now())
+
 		if remaining > 0 {
-			// Use a type switch to safely convert from AOF string to the Generic type
-			var k K
-			var v V
-
-			// This is a bit of a hack for Generics, but it works for basic types
-			fmt.Sscan(keyStr, &k)
-			fmt.Sscan(valStr, &v)
-
 			m.setInternal(k, v, remaining)
 		}
 	}
