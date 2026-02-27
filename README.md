@@ -8,38 +8,29 @@
   - Data Volume: Typically gigabytes of RAM.
   - Payloads: Small to medium objects (JSON blobs, protobufs).
 
-## Minimum Viable Product (MVP)
-1. LRU Logic: A doubly linked list 🔗 combined with a hash map 🗺️ for $O(1)$ access and eviction.
-2. Sharding Strategy: A hashing function (like fnv64a) to map keys to specific shards.
-3. Concurrency Control: Using sync.RWMutex per shard to allow concurrent reads.
-4. Basic API: Get(key), Set(key, value, TTL), and Delete(key).
+## Key Features
+- Go Generics: Type-agnostic implementation supporting any comparable key and any value type.
+- Sharded Architecture: Uses a Manager pattern to divide the cache into $N$ independent shards, reducing lock contention and improving performance on multi-core systems.
+- Consistent Hashing: Implements a Hash Ring with Virtual Nodes to ensure uniform data distribution across shards.
+- Durability (AOF): Append-Only File persistence with bufio buffering and background synchronization to ensure data survives server restarts.
+- LRU Eviction: O(1) Least Recently Used eviction policy using a doubly linked list and a hash map.
+- Active Janitor: A background goroutine that periodically sweeps and reaps expired items to prevent memory bloat.
 
-## Roadmap
-1. Implement the Doubly Linked List and Hash Map manually (don't just use container/list). This is where you conquer your fear of pointers and memory allocation.
-2. Benchmarking and Profiling. Use go test -bench and pprof to generate flame graphs. See exactly how much time the Garbage Collector spends cleaning up your evicted nodes.
-3. Add the Sharding logic. Implement a hashing algorithm (like FNV-1a) to distribute keys.
-4. Benchmarking and Profilin again.
+## Architecture
 
-## Optional Enhancements
-- TTL (Time-to-Live): Automatically expiring keys after a duration.
-- Prometheus Metrics: Tracking hit/miss ratios and eviction counts 📊.
-- Custom Serialization: Supporting gob or protobuf for cross-network compatibility.
-- Distributed Layer: Adding a gRPC or HTTP interface to turn it into a standalone service.
+### The Hash Ring
+To avoid "Cache Stampedes" and ensure high availability, the system uses consistent hashing. By mapping shards to a circular hash space, we minimize the amount of data remapping required if the shard count changes.
 
-```
-/sharded-cache
-├── cmd/
-│   └── cache-server/    # The main application entry point
-│       └── main.go      # Compiles to 'cache-server' binary
-├── internal/            # Private code (not importable by other projects)
-│   ├── lru/             # Core eviction logic
-│   └── shard/           # Concurrency and sharding management
-├── pkg/                 # Public library code (if you want others to use your cache)
-├── go.mod
-└── README.md
-```
+### Persistence Layer
+The AOF (Append-Only File) utilizes JSON + Base64 serialization. This allows complex structs to be stored as single, safe strings on disk, preventing file corruption from special characters or newlines in the data.
 
-## How to test by REST
+### Memory Management
+The cache employs a dual-eviction strategy:
+1. Lazy Eviction: Items are checked for expiration during access (Get).
+2. Active Eviction: A "Janitor" goroutine runs at configurable intervals to clean up "zombie" data that hasn't been accessed.
+
+
+## Usage
 
 ```
 # Run the server
@@ -56,6 +47,12 @@ curl "http://localhost:8080/get?key=golang"
 
 # Get stats
 curl "http://localhost:8080/stats"
+
+# Run all tests
+go test ./internal/...
+
+# Run benchmarks to see sharding performance
+go test -bench=. ./internal/shard/
 ```
 
 ## Benchmark
@@ -96,3 +93,15 @@ pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
 cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
 BenchmarkShardedCache_Parallel-4         5569131               239.1 ns/op
 ```
+
+## Engineering Trade-offs
+- AOF vs Snapshots: I chose AOF for higher durability. While it results in larger files, it ensures that every write is captured.
+- Buffered Writing: Used bufio.Writer to turn expensive Disk I/O into cheap RAM-to-RAM copies, flushing to disk asynchronously to maintain high throughput.
+- Base64 Encoding: Implemented to guarantee that the line-delimited AOF format remains robust even when storing binary data or complex JSON objects.
+
+## Future Enhancement Ideas
+- Custom Serialization: Supporting gob or protobuf for cross-network compatibility.
+- Distributed Layer: Adding a gRPC or HTTP interface to turn it into a standalone service.
+- Log Compaction: To keep the AOF file from growing infinitely.
+- Raft/Paxos: To make it a truly distributed cluster across multiple machines.
+- Prometheus Metrics: For professional-grade monitoring.
