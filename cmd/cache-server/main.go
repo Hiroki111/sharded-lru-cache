@@ -75,6 +75,19 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// You don't want to compact on every Set (that would be $O(N)$ and slow). You usually trigger it based on:
+// Time: Once every hour.
+// Size: When the AOF file exceeds 1GB.
+// Manual: An admin endpoint /compact.
+func (s *Server) handleCompact(w http.ResponseWriter, r *http.Request) {
+	err := s.cache.Compact()
+	if err != nil {
+		http.Error(w, "Compaction failed", 500)
+		return
+	}
+	w.Write([]byte("Compaction successful"))
+}
+
 func main() {
 	mgr := shard.NewCacheManager[string, string](32, 1024, 3, "cache.aof")
 
@@ -90,6 +103,7 @@ func main() {
 	http.HandleFunc("/get", srv.handleGet)
 	http.HandleFunc("/set", srv.handleSet)
 	http.HandleFunc("/stats", srv.handleStats)
+	http.HandleFunc("/compact", srv.handleCompact)
 
 	println("Server starting on :8080...")
 	http.ListenAndServe(":8080", nil)

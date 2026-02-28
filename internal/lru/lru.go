@@ -24,6 +24,11 @@ type LRU[K comparable, V any] struct {
 	stats    Stats
 }
 
+type Entry[V any] struct {
+	Value    V
+	ExpiryAt time.Time
+}
+
 func NewLRUCache[K comparable, V any](capacity int) *LRU[K, V] {
 	return &LRU[K, V]{
 		capacity: capacity,
@@ -80,6 +85,17 @@ func (c *LRU[K, V]) DeleteExpired() {
 
 func (c *LRU[K, V]) Stats() Stats {
 	return c.stats
+}
+
+func (c *LRU[K, V]) Items() map[K]Entry[V] {
+	res := make(map[K]Entry[V])
+	for k, node := range c.nodesMap {
+		res[k] = Entry[V]{
+			Value:    node.Value,
+			ExpiryAt: node.ExpiresAt,
+		}
+	}
+	return res
 }
 
 func (c *LRU[K, V]) extract(node *Node[K, V]) {

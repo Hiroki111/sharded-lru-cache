@@ -174,6 +174,72 @@ func (m *CacheManager[K, V]) LoadAOF() error {
 	return nil
 }
 
+func (m *CacheManager[K, V]) Compact() error {
+	if m.aof == nil {
+		return nil
+	}
+
+	// --- ENTRANCE TO CRITICAL SECTION ---
+	// We lock the entire manager. No 'Set' operations can write to AOF
+	// or modify shards until we are finished.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tempPath := m.aof.Name() + ".tmp"
+	tempFile, err := os.Create(tempPath)
+	if err != nil {
+		return err
+	}
+	tempWriter := bufio.NewWriter(tempFile)
+
+	// 1. Iterate through all shards and write CURRENT state to the TEMP file
+	for _, shard := range m.shards {
+		// We use a Lock here because we are already inside the Manager's Lock.
+		// This ensures the shard doesn't change while we read it.
+		shard.mu.RLock()
+		items := shard.cache.Items() // Assuming this returns a map copy or we iterate safely
+		for key, entry := range items {
+			if time.Now().Before(entry.ExpiryAt) {
+				kBuf, _ := json.Marshal(key)
+				vBuf, _ := json.Marshal(entry.Value)
+				kEnc := base64.StdEncoding.EncodeToString(kBuf)
+				vEnc := base64.StdEncoding.EncodeToString(vBuf)
+
+				fmt.Fprintf(tempWriter, "SET|%s|%s|%d\n", kEnc, vEnc, entry.ExpiryAt.Unix())
+			}
+		}
+		shard.mu.RUnlock()
+	}
+
+	// 2. Flush and close the temporary "snapshot" file
+	tempWriter.Flush()
+	tempFile.Close()
+
+	// 3. Prepare the old AOF for replacement
+	if m.writer != nil {
+		m.writer.Flush()
+	}
+	if m.aof != nil {
+		m.aof.Sync()
+		m.aof.Close()
+	}
+
+	// 4. Atomic Swap: Replace the old bloat with the new snapshot
+	if err := os.Rename(tempPath, m.aof.Name()); err != nil {
+		return err
+	}
+
+	// 5. Re-open the AOF and reset the buffered writer
+	newF, err := os.OpenFile(m.aof.Name(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	m.aof = newF
+	m.writer = bufio.NewWriter(newF)
+
+	return nil
+}
+
 func (m *CacheManager[K, V]) setInternal(key K, value V, ttl time.Duration) {
 	shard := m.getShard(key)
 
