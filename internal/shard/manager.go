@@ -25,11 +25,12 @@ type CacheManager[K comparable, V any] struct {
 	stopChan   chan struct{}
 	hashRing   *HashRing
 	aof        *os.File
+	aofMaxSize int64 // Threshold in bytes (e.g., 50 * 1024 * 1024 for 50MB)
 	writer     *bufio.Writer
 	mu         sync.RWMutex
 }
 
-func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string) *CacheManager[K, V] {
+func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string, aofMaxSize int64) *CacheManager[K, V] {
 	var f *os.File
 	var w *bufio.Writer
 	if aofPath != "" {
@@ -43,6 +44,7 @@ func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, sha
 		stopChan:   make(chan struct{}),
 		hashRing:   NewHashRing(shardCount, shardReplica),
 		aof:        f,
+		aofMaxSize: aofMaxSize,
 		writer:     w,
 	}
 
@@ -114,6 +116,36 @@ func (m *CacheManager[K, V]) StartAofSyncer() {
 					m.writer.Flush()
 					m.aof.Sync()
 					m.mu.Unlock()
+				}
+			case <-m.stopChan:
+				return
+			}
+		}
+	}()
+}
+
+func (m *CacheManager[K, V]) StartAofMonitor(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if m.aof == nil || m.aofMaxSize <= 0 {
+					continue
+				}
+
+				info, err := os.Stat(m.aof.Name())
+				if err != nil {
+					continue
+				}
+
+				if info.Size() > m.aofMaxSize {
+					fmt.Printf("AOF size (%d) exceeds limit (%d). Starting compaction...\n", info.Size(), m.aofMaxSize)
+					if err := m.Compact(); err != nil {
+						fmt.Printf("Automatic compaction failed: %v\n", err)
+					}
 				}
 			case <-m.stopChan:
 				return

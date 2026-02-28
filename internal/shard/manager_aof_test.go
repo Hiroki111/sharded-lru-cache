@@ -12,12 +12,15 @@ type ComplexUser struct {
 	Active bool
 }
 
+// 50MG
+const maxAofSize int64 = 50 * 1024 * 1024
+
 func TestAOF_GenericTypes(t *testing.T) {
 	aofPath := "test_generic.aof"
 	defer os.Remove(aofPath) // Clean up after test
 
 	// 1. Create a cache for structs
-	mgr := NewCacheManager[string, ComplexUser](4, 100, 3, aofPath)
+	mgr := NewCacheManager[string, ComplexUser](4, 100, 3, aofPath, maxAofSize)
 
 	user := ComplexUser{ID: 1, Name: "Bruce Wayne", Active: true}
 	mgr.Set("user_1", user, 1*time.Hour)
@@ -28,7 +31,7 @@ func TestAOF_GenericTypes(t *testing.T) {
 	mgr.aof.Close()
 
 	// 2. Create a NEW manager to simulate restart
-	newMgr := NewCacheManager[string, ComplexUser](4, 100, 3, aofPath)
+	newMgr := NewCacheManager[string, ComplexUser](4, 100, 3, aofPath, maxAofSize)
 	err := newMgr.LoadAOF()
 	if err != nil {
 		t.Fatalf("Failed to load AOF: %v", err)
