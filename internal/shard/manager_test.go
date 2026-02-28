@@ -2,6 +2,7 @@ package shard
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -44,5 +45,44 @@ func TestCacheManager_ConcurrentSet(t *testing.T) {
 
 	if _, ok := cache.Get("a"); !ok {
 		t.Errorf("Expected ok")
+	}
+}
+
+func TestCacheManager_Set(t *testing.T) {
+	type User struct {
+		id   uint
+		name string
+	}
+	users := []User{{id: 1, name: "Alice"}, {id: 2, name: "Bob"}, {id: 3, name: "Carol"}}
+	mapNameToId := map[string]int{"Alice": 1, "Bob": 2, "Carol": 3}
+	intChan := make(chan int, 5)
+
+	tests := []struct {
+		testName string
+		value    any
+	}{
+		{testName: "map", value: mapNameToId},
+		{testName: "slice", value: users},
+		{testName: "pointer", value: &users},
+		{testName: "float64", value: float64(0.123)},
+		{testName: "channel", value: intChan},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			mgr := NewCacheManager[string, any](1, 1, 1, "")
+			key := "k"
+			ttl := 60 * time.Second
+			mgr.Set(key, test.value, ttl)
+
+			value, found := mgr.Get(key)
+			if !found {
+				t.Fatalf("expected key to be found")
+			}
+
+			if !reflect.DeepEqual(value, test.value) {
+				t.Fatalf("expected %v, got %v", test.value, value)
+			}
+		})
 	}
 }
