@@ -59,6 +59,7 @@ func (c *LRU[K, V]) Get(key K) (V, bool) {
 func (c *LRU[K, V]) Set(key K, value V, ttl time.Duration) {
 	if node, found := c.nodesMap[key]; found {
 		node.Value = value
+		node.ExpiresAt = time.Now().Add(ttl)
 		c.extract(node)
 		c.pushFront(node)
 		return

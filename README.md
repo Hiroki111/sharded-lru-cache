@@ -100,8 +100,8 @@ BenchmarkShardedCache_Parallel-4         5569131               239.1 ns/op
 - Base64 Encoding: Implemented to guarantee that the line-delimited AOF format remains robust even when storing binary data or complex JSON objects.
 
 ## Future Enhancement Ideas
+- Graceful shutdown
 - Custom Serialization: Supporting gob or protobuf for cross-network compatibility.
 - Distributed Layer: Adding a gRPC or HTTP interface to turn it into a standalone service.
-- Log Compaction: To keep the AOF file from growing infinitely.
 - Raft/Paxos: To make it a truly distributed cluster across multiple machines.
 - Prometheus Metrics: For professional-grade monitoring.

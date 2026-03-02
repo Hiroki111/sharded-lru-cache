@@ -229,7 +229,8 @@ func (m *CacheManager[K, V]) Compact() error {
 		// We use a Lock here because we are already inside the Manager's Lock.
 		// This ensures the shard doesn't change while we read it.
 		shard.mu.RLock()
-		items := shard.cache.Items() // Assuming this returns a map copy or we iterate safely
+		items := shard.cache.Items() // this returns a map copy, which is safe to iterate through
+		shard.mu.RUnlock()
 		for key, entry := range items {
 			if time.Now().Before(entry.ExpiryAt) {
 				kBuf, _ := json.Marshal(key)
@@ -240,7 +241,6 @@ func (m *CacheManager[K, V]) Compact() error {
 				fmt.Fprintf(tempWriter, "SET|%s|%s|%d\n", kEnc, vEnc, entry.ExpiryAt.Unix())
 			}
 		}
-		shard.mu.RUnlock()
 	}
 
 	// 2. Flush and close the temporary "snapshot" file
