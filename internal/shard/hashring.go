@@ -7,13 +7,13 @@ import (
 )
 
 type HashRing struct {
-	shards              []uint32
+	hashes              []uint32
 	mapHashToShardIndex map[uint32]int
 }
 
 func NewHashRing(shardCount int, replicas int) *HashRing {
 	hr := &HashRing{
-		shards:              make([]uint32, 0),
+		hashes:              make([]uint32, 0),
 		mapHashToShardIndex: make(map[uint32]int),
 	}
 	for i := 0; i < shardCount; i++ {
@@ -21,32 +21,32 @@ func NewHashRing(shardCount int, replicas int) *HashRing {
 			nodeName := "shard-" + strconv.Itoa(i) + "-v" + strconv.Itoa(r)
 			h := hr.hash(nodeName)
 
-			hr.shards = append(hr.shards, h)
+			hr.hashes = append(hr.hashes, h)
 			hr.mapHashToShardIndex[h] = i
 		}
 	}
-	sort.Slice(hr.shards, func(i, j int) bool {
-		return hr.shards[i] < hr.shards[j]
+	sort.Slice(hr.hashes, func(i, j int) bool {
+		return hr.hashes[i] < hr.hashes[j]
 	})
 	return hr
 }
 
 func (hr *HashRing) GetShardIndex(key string) int {
-	if len(hr.shards) == 0 {
+	if len(hr.hashes) == 0 {
 		return 0
 	}
 
 	hash := hr.hash(key)
 	// Find the first shard hash >= key hash (binary search)
-	nearestNodeIndex := sort.Search(len(hr.shards), func(i int) bool {
-		return hr.shards[i] >= hash
+	nearestHasheIndex := sort.Search(len(hr.hashes), func(i int) bool {
+		return hr.hashes[i] >= hash
 	})
 
-	if nearestNodeIndex == len(hr.shards) {
-		nearestNodeIndex = 0
+	if nearestHasheIndex == len(hr.hashes) {
+		nearestHasheIndex = 0
 	}
 
-	hashInRing := hr.shards[nearestNodeIndex]
+	hashInRing := hr.hashes[nearestHasheIndex]
 	return hr.mapHashToShardIndex[hashInRing]
 }
 

@@ -20,7 +20,6 @@ type Shard[K comparable, V any] struct {
 }
 
 type CacheManager[K comparable, V any] struct {
-	shardCount uint32
 	shards     []*Shard[K, V]
 	stopChan   chan struct{}
 	hashRing   *HashRing
@@ -39,7 +38,6 @@ func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, sha
 	}
 
 	m := &CacheManager[K, V]{
-		shardCount: uint32(shardCount),
 		shards:     make([]*Shard[K, V], shardCount),
 		stopChan:   make(chan struct{}),
 		hashRing:   NewHashRing(shardCount, shardReplica),
