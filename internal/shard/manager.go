@@ -29,11 +29,16 @@ type CacheManager[K comparable, V any] struct {
 	mu         sync.RWMutex
 }
 
-func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string, aofMaxSize int64) *CacheManager[K, V] {
+func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, shardReplica int, aofPath string, aofMaxSize int64) (*CacheManager[K, V], error) {
 	var f *os.File
 	var w *bufio.Writer
+
 	if aofPath != "" {
-		f, _ = os.OpenFile(aofPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		var err error
+		f, err = os.OpenFile(aofPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open AOF file %s: %w", aofPath, err)
+		}
 		w = bufio.NewWriter(f)
 	}
 
@@ -51,7 +56,7 @@ func NewCacheManager[K comparable, V any](shardCount int, shardCapacity int, sha
 			cache: lru.NewLRUCache[K, V](shardCapacity),
 		}
 	}
-	return m
+	return m, nil
 }
 
 func (m *CacheManager[K, V]) Get(key K) (V, bool) {

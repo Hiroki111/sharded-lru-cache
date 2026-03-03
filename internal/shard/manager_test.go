@@ -12,7 +12,7 @@ const ttl = 10 * time.Minute
 
 func BenchmarkShardedCache_Parallel(b *testing.B) {
 	numOfShards := 32
-	cache := NewCacheManager[string, int](numOfShards, 1000, 3, "", maxAofSize)
+	cache, _ := NewCacheManager[string, int](numOfShards, 1000, 3, "", maxAofSize)
 
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -26,7 +26,7 @@ func BenchmarkShardedCache_Parallel(b *testing.B) {
 }
 
 func TestCacheManager_ConcurrentSet(t *testing.T) {
-	cache := NewCacheManager[string, int](32, 100, 3, "", maxAofSize)
+	cache, _ := NewCacheManager[string, int](32, 100, 3, "", maxAofSize)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -70,7 +70,7 @@ func TestCacheManager_Set(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			mgr := NewCacheManager[string, any](1, 1, 1, "", 50*1024*1024)
+			mgr, _ := NewCacheManager[string, any](1, 1, 1, "", 50*1024*1024)
 			key := "k"
 			ttl := 60 * time.Second
 			mgr.Set(key, test.value, ttl)

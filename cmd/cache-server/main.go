@@ -3,7 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Hiroki111/sharded-lru-cache/internal/shard"
@@ -89,25 +93,55 @@ func (s *Server) handleCompact(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// 50 MB limit
-	var maxAofSize int64 = 50 * 1024 * 1024
-	mgr := shard.NewCacheManager[string, string](32, 1024, 3, "cache.aof", maxAofSize)
+	// 1. Configuration
+	var maxAofSize int64 = 50 * 1024 * 1024 // 50 MB
 
-	if err := mgr.LoadAOF(); err != nil {
-		fmt.Printf("Warning: Couldn't load AOF: %v\n", err)
+	// 2. Initialization
+	mgr, err := shard.NewCacheManager[string, string](32, 1024, 3, "cache.aof", maxAofSize)
+	if err != nil {
+		// Use log.Fatalf for critical startup errors
+		log.Fatalf("Critical Error: Failed to initialize cache manager: %v", err)
 	}
 
+	// 3. Recovery
+	if err := mgr.LoadAOF(); err != nil {
+		// A warning is appropriate here as the server can still function
+		log.Printf("Warning: Recovery from AOF incomplete: %v", err)
+	}
+
+	// 4. Background Workers
 	mgr.StartJanitor(10 * time.Second)
 	mgr.StartAofSyncer()
 	mgr.StartAofMonitor(30 * time.Second)
 
 	srv := &Server{cache: mgr}
 
-	http.HandleFunc("/get", srv.handleGet)
-	http.HandleFunc("/set", srv.handleSet)
-	http.HandleFunc("/stats", srv.handleStats)
-	http.HandleFunc("/compact", srv.handleCompact)
+	// 5. Routing
+	mux := http.NewServeMux() // Using a local mux is cleaner than global http.HandleFunc
+	mux.HandleFunc("/get", srv.handleGet)
+	mux.HandleFunc("/set", srv.handleSet)
+	mux.HandleFunc("/stats", srv.handleStats)
+	mux.HandleFunc("/compact", srv.handleCompact)
 
-	println("Server starting on :8080...")
-	http.ListenAndServe(":8080", nil)
+	httpServer := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+
+	// 6. Graceful Shutdown Logic
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		<-sigChan
+
+		log.Println("Shutting down gracefully...")
+		mgr.Stop()
+		log.Println("AOF flushed. Goodbye!")
+		os.Exit(0)
+	}()
+
+	log.Println("Server starting on :8080...")
+	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+		log.Fatalf("HTTP server failed: %v", err)
+	}
 }
