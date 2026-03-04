@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Hiroki111/sharded-lru-cache/internal/shard"
+	"github.com/Hiroki111/sharded-lru-cache/pkg/shard"
 )
 
 type Server struct {

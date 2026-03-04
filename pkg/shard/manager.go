@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Hiroki111/sharded-lru-cache/internal/lru"
+	"github.com/Hiroki111/sharded-lru-cache/pkg/lru"
 )
 
 type Shard[K comparable, V any] struct {
