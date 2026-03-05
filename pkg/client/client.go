@@ -33,6 +33,13 @@ type getResponse struct {
 	Value string `json:"value"`
 }
 
+type statsResponse struct {
+	Hits      uint64 `json:"hits"`
+	Misses    uint64 `json:"misses"`
+	Evictions uint64 `json:"evictions"`
+	HitRate   string `json:"hit_rate"`
+}
+
 func (c *Client) Set(key string, value interface{}, ttl time.Duration) error {
 	url := fmt.Sprintf("%s/set", c.BaseURL)
 
@@ -82,4 +89,41 @@ func (c *Client) Get(key string) (string, error) {
 	}
 
 	return res.Value, nil
+}
+
+func (c *Client) Stats() (statsResponse, error) {
+	url := fmt.Sprintf("%s/stats", c.BaseURL)
+
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return statsResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return statsResponse{}, fmt.Errorf("server returned status: %d", resp.StatusCode)
+	}
+
+	var res statsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return statsResponse{}, err
+	}
+
+	return res, nil
+}
+
+func (c *Client) Compact() error {
+	url := fmt.Sprintf("%s/compact", c.BaseURL)
+
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return err
+	}
+
+	return nil
 }

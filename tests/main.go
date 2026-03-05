@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/Hiroki111/sharded-lru-cache/pkg/client"
 )
@@ -22,9 +21,6 @@ func main() {
 	}
 	fmt.Println("[Service A]: Success.")
 
-	// --- SIMULATED NETWORK DELAY ---
-	time.Sleep(2 * time.Second)
-
 	// --- SIMULATED SERVICE B: THE READER ---
 	fmt.Println("\n[Service B]: Attempting to fetch product 123...")
 	val, err := c.Get("catalog:123")
@@ -33,9 +29,25 @@ func main() {
 	}
 
 	if val == "High-End Laptop" {
-		fmt.Printf("[Service B]: Success! Data retrieved: %s\n", val)
-		fmt.Println("\n✅ VERIFIED: Data shared across independent service calls.")
+		fmt.Printf("[Service B]: Success. Data retrieved: %s\n", val)
+		fmt.Println("\nVERIFIED: Data shared across independent service calls.")
 	} else {
 		fmt.Printf("[Service B]: Error! Data mismatch. Got: %s\n", val)
 	}
+
+	// --- SIMULATED SERVICE C: THE STATS ---
+	fmt.Println("\n[Service C]: Retrieving stats...")
+	stats, err := c.Stats()
+	if err != nil {
+		log.Fatalf("Service C failed: %v", err)
+	}
+	fmt.Printf("[Service C]: Success Data retrieved: %+v\n", stats)
+
+	// --- SIMULATED SERVICE D: THE COMPACTION ---
+	fmt.Println("\n[Service D]: Compacting AOF...")
+	err = c.Compact()
+	if err != nil {
+		log.Fatalf("Service D failed: %v", err)
+	}
+	fmt.Println("[Service D]: Success")
 }
