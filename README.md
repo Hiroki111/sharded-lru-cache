@@ -101,6 +101,5 @@ BenchmarkShardedCache_Parallel-4         5569131               239.1 ns/op
 
 ## Future Enhancement Ideas
 - Custom Serialization: Supporting gob or protobuf for cross-network compatibility.
-- Distributed Layer: Adding a gRPC or HTTP interface to turn it into a standalone service.
 - Raft/Paxos: To make it a truly distributed cluster across multiple machines.
 - Prometheus Metrics: For professional-grade monitoring.
