@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,7 +41,39 @@ type statsResponse struct {
 	HitRate   string `json:"hit_rate"`
 }
 
-func (c *Client) Set(key string, value interface{}, ttl time.Duration) error {
+func init() {
+	gob.Register("")
+}
+
+func (c *Client) Set(key string, value interface{}, ttl int) error {
+	url := fmt.Sprintf("%s/set", c.BaseURL)
+
+	payload := setRequest{
+		Key:   key,
+		Value: value,
+		TTL:   ttl,
+	}
+
+	// 1. Encode to Binary Buffer
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(payload); err != nil {
+		return err
+	}
+
+	// 2. Send as octet-stream
+	resp, err := c.HTTPClient.Post(url, "application/octet-stream", &buf)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to set key, status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *Client) SetJSON(key string, value interface{}, ttl time.Duration) error {
 	url := fmt.Sprintf("%s/set", c.BaseURL)
 
 	payload := setRequest{
@@ -67,6 +100,29 @@ func (c *Client) Set(key string, value interface{}, ttl time.Duration) error {
 }
 
 func (c *Client) Get(key string) (string, error) {
+	url := fmt.Sprintf("%s/get?key=%s", c.BaseURL, key)
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return "", fmt.Errorf("key not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get key, status: %d", resp.StatusCode)
+	}
+
+	var val string
+	if err := gob.NewDecoder(resp.Body).Decode(&val); err != nil {
+		return "", err
+	}
+	return val, nil
+}
+
+func (c *Client) GetJSON(key string) (string, error) {
 	url := fmt.Sprintf("%s/get?key=%s", c.BaseURL, key)
 
 	resp, err := c.HTTPClient.Get(url)
