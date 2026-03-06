@@ -15,7 +15,7 @@ import (
 )
 
 type Server struct {
-	cache *shard.CacheManager[string, string]
+	cache *shard.CacheManager[string, any]
 }
 
 type setPayload struct {
@@ -109,7 +109,7 @@ func (s *Server) handleGetJSON(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"value": value})
+	json.NewEncoder(w).Encode(map[string]any{"value": value})
 }
 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,7 @@ func main() {
 	var maxAofSize int64 = 50 * 1024 * 1024 // 50 MB
 
 	// 2. Initialization
-	mgr, err := shard.NewCacheManager[string, string](32, 1024, 3, "cache.aof", maxAofSize)
+	mgr, err := shard.NewCacheManager[string, any](32, 1024, 3, "cache.aof", maxAofSize)
 	if err != nil {
 		// Use log.Fatalf for critical startup errors
 		log.Fatalf("Critical Error: Failed to initialize cache manager: %v", err)
