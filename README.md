@@ -100,6 +100,7 @@ BenchmarkShardedCache_Parallel-4         5569131               239.1 ns/op
 - Base64 Encoding: Implemented to guarantee that the line-delimited AOF format remains robust even when storing binary data or complex JSON objects.
 
 ## Future Enhancement Ideas
-- Custom Serialization: Supporting gob or protobuf for cross-network compatibility.
 - Raft/Paxos: To make it a truly distributed cluster across multiple machines.
+- Consistent Hashing with Multiple Nodes (Client-Side Sharding)
+- Custom Serialization: Try protobuf to reduce the size of payload.
 - Prometheus Metrics: For professional-grade monitoring.

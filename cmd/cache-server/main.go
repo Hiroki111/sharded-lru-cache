@@ -35,33 +35,6 @@ func (s *Server) handleSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload setPayload
-	if err := gob.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "Invalid Binary Data", http.StatusBadRequest)
-		return
-	}
-
-	ttl := time.Duration(payload.TTL) * time.Second
-	if ttl == 0 {
-		ttl = 10 * time.Minute
-	}
-
-	value, ok := payload.Value.(string)
-	if !ok {
-		http.Error(w, "Value must be a string", http.StatusBadRequest)
-		return
-	}
-
-	s.cache.Set(payload.Key, value, ttl)
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (s *Server) handleSetJSON(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var payload setPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -86,19 +59,6 @@ func (s *Server) handleSetJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
-	key := r.URL.Query().Get("key")
-	val, found := s.cache.Get(key)
-
-	if !found {
-		http.Error(w, "Not Found", 404)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/octet-stream")
-	gob.NewEncoder(w).Encode(val)
-}
-
-func (s *Server) handleGetJSON(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
 	value, found := s.cache.Get(key)
@@ -170,9 +130,7 @@ func main() {
 	// 5. Routing
 	mux := http.NewServeMux() // Using a local mux is cleaner than global http.HandleFunc
 	mux.HandleFunc("/get", srv.handleGet)
-	mux.HandleFunc("/get-json", srv.handleGetJSON)
 	mux.HandleFunc("/set", srv.handleSet)
-	mux.HandleFunc("/set-json", srv.handleSetJSON)
 	mux.HandleFunc("/stats", srv.handleStats)
 	mux.HandleFunc("/compact", srv.handleCompact)
 
