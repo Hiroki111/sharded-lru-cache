@@ -19,8 +19,10 @@ sleep 2
 
 # 3. Inject data via API
 echo "Injecting data (Batman and Joker)..."
-curl -s -X POST http://localhost:$PORT/set -d '{"key": "hero", "value": "Batman", "ttl": 3600}'
-curl -s -X POST http://localhost:$PORT/set -d '{"key": "villain", "value": "Joker", "ttl": 3600}'
+# "Batman" in Base64 is QmF0bWFu
+curl -s -X POST http://localhost:8080/set -d '{"key": "hero", "value": "QmF0bWFu", "ttl": 3600}'
+# "Joker" in Base64 is Sm9rZXI=
+curl -s -X POST http://localhost:$PORT/set -d '{"key": "villain", "value": "Sm9rZXI=", "ttl": 3600}'
 
 # Give the AOF Syncer a moment to flush the buffer to disk
 echo "Waiting for AOF Sync..."
@@ -40,7 +42,7 @@ sleep 2
 echo "Querying recovered data..."
 RESPONSE=$(curl -s "http://localhost:$PORT/get?key=hero")
 
-if [[ $RESPONSE == *"Batman"* ]]; then
+if [[ $RESPONSE == *"QmF0bWFu"* ]]; then
     echo "✅ SUCCESS"
 else
     echo "❌ FAILURE: Data lost. Response was: $RESPONSE"
