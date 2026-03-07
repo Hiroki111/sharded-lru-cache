@@ -25,12 +25,12 @@ func NewClient(baseURL string) *Client {
 
 type setRequest struct {
 	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Value []byte `json:"value"`
 	TTL   int    `json:"ttl"`
 }
 
 type getResponse struct {
-	Value any `json:"value"`
+	Value []byte `json:"value"`
 }
 
 type statsResponse struct {
@@ -40,12 +40,17 @@ type statsResponse struct {
 	HitRate   string `json:"hit_rate"`
 }
 
-func (c *Client) Set(key string, value interface{}, ttl time.Duration) error {
+func (c *Client) Set(key string, value any, ttl time.Duration) error {
 	url := fmt.Sprintf("%s/set", c.BaseURL)
+
+	valueInBytes, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
 
 	payload := setRequest{
 		Key:   key,
-		Value: value,
+		Value: valueInBytes,
 		TTL:   int(ttl.Seconds()),
 	}
 
@@ -84,13 +89,36 @@ func (c *Client) Get(key string) (any, error) {
 	}
 
 	var res getResponse
-	decoder := json.NewDecoder(resp.Body)
-	decoder.UseNumber()
-	if err := decoder.Decode(&res); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
 
-	return res.Value, nil
+	var parsedValue any
+	decoder := json.NewDecoder(bytes.NewReader(res.Value))
+	decoder.UseNumber()
+	if err := decoder.Decode(&parsedValue); err != nil {
+		return nil, err
+	}
+
+	return parsedValue, nil
+}
+
+func GetAs[T any](c *Client, key string) (T, error) {
+	var result T
+	url := fmt.Sprintf("%s/get?key=%s", c.BaseURL, key)
+
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer resp.Body.Close()
+
+	var res getResponse
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	err = json.Unmarshal(res.Value, &result)
+	return result, err
 }
 
 func (c *Client) Stats() (statsResponse, error) {

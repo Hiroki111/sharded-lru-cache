@@ -19,7 +19,7 @@ type Server struct {
 
 type setPayload struct {
 	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Value []byte `json:"value"`
 	TTL   int    `json:"ttl"`
 }
 
