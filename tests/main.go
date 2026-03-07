@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 
 	"github.com/Hiroki111/sharded-lru-cache/pkg/client"
 )
@@ -10,12 +12,23 @@ import (
 func main() {
 	// Initialize the client pointing to your local cache server
 	c := client.NewClient("http://localhost:8080")
+	input := map[string]any{
+		"id":   json.Number("1"),
+		"name": "test",
+		"gpa":  json.Number("3.8"),
+		"role_ids": []any{
+			json.Number("1"),
+			json.Number("2"),
+			json.Number("3"),
+		},
+		"is_admin": true,
+	}
 
 	fmt.Println("🚀 Starting Distributed Simulation...")
 
 	// --- SIMULATED SERVICE A: THE WRITER ---
 	fmt.Println("\n[Service A]: Storing product data...")
-	err := c.Set("catalog:123", "High-End Laptop", 60)
+	err := c.Set("catalog:123", input, 60)
 	if err != nil {
 		log.Fatalf("Service A failed: %v", err)
 	}
@@ -28,11 +41,11 @@ func main() {
 		log.Fatalf("Service B failed: %v", err)
 	}
 
-	if val == "High-End Laptop" {
-		fmt.Printf("[Service B]: Success. Data retrieved: %s\n", val)
+	if reflect.DeepEqual(val, input) {
+		fmt.Printf("[Service B]: Success. Data retrieved: %v\n", val)
 		fmt.Println("\nVERIFIED: Data shared across independent service calls.")
 	} else {
-		fmt.Printf("[Service B]: Error! Data mismatch. Got: %s\n", val)
+		fmt.Printf("[Service B]: Error! Data mismatch. Got: %v\n", val)
 	}
 
 	// --- SIMULATED SERVICE C: THE STATS ---

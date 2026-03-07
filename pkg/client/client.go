@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,13 +24,13 @@ func NewClient(baseURL string) *Client {
 }
 
 type setRequest struct {
-	Key   string      `json:"key"`
-	Value interface{} `json:"value"`
-	TTL   int         `json:"ttl"`
+	Key   string `json:"key"`
+	Value any    `json:"value"`
+	TTL   int    `json:"ttl"`
 }
 
 type getResponse struct {
-	Value string `json:"value"`
+	Value any `json:"value"`
 }
 
 type statsResponse struct {
@@ -39,10 +38,6 @@ type statsResponse struct {
 	Misses    uint64 `json:"misses"`
 	Evictions uint64 `json:"evictions"`
 	HitRate   string `json:"hit_rate"`
-}
-
-func init() {
-	gob.Register("")
 }
 
 func (c *Client) Set(key string, value interface{}, ttl time.Duration) error {
@@ -71,7 +66,7 @@ func (c *Client) Set(key string, value interface{}, ttl time.Duration) error {
 	return nil
 }
 
-func (c *Client) Get(key string) (string, error) {
+func (c *Client) Get(key string) (any, error) {
 	url := fmt.Sprintf("%s/get?key=%s", c.BaseURL, key)
 
 	resp, err := c.HTTPClient.Get(url)
@@ -89,8 +84,10 @@ func (c *Client) Get(key string) (string, error) {
 	}
 
 	var res getResponse
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "", err
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	if err := decoder.Decode(&res); err != nil {
+		return nil, err
 	}
 
 	return res.Value, nil

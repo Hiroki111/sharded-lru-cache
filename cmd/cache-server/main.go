@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -19,13 +18,9 @@ type Server struct {
 }
 
 type setPayload struct {
-	Key   string      `json:"key"`
-	Value interface{} `json:"value"`
-	TTL   int         `json:"ttl"`
-}
-
-func init() {
-	gob.Register("")
+	Key   string `json:"key"`
+	Value any    `json:"value"`
+	TTL   int    `json:"ttl"`
 }
 
 func (s *Server) handleSet(w http.ResponseWriter, r *http.Request) {
@@ -45,13 +40,7 @@ func (s *Server) handleSet(w http.ResponseWriter, r *http.Request) {
 		ttl = 10 * time.Minute
 	}
 
-	value, ok := payload.Value.(string)
-	if !ok {
-		http.Error(w, "Value must be a string", http.StatusBadRequest)
-		return
-	}
-
-	s.cache.Set(payload.Key, value, ttl)
+	s.cache.Set(payload.Key, payload.Value, ttl)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
