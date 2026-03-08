@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-AOF_PATH="./cache.aof"
+AOF_PATH="./data/cache.aof"
 SERVER_BIN="./cache-server"
 PORT=8080
 

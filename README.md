@@ -1,5 +1,7 @@
 # sharded-lru-cache
 
+A high-performance, distributed-ready in-memory cache written in Go, featuring AOF persistence, binary-safe transparency, and automated log compaction.
+
 ## Context & Usage
 - The Users: Other backend services (e.g., a microservice needing to cache database results or API responses).
 - The Use Case: High-throughput systems where a single global lock would become a bottleneck (e.g., a session store or a metadata cache).
@@ -9,12 +11,17 @@
   - Payloads: Small to medium objects (JSON blobs, protobufs).
 
 ## Key Features
-- Go Generics: Type-agnostic implementation supporting any comparable key and any value type.
-- Sharded Architecture: Uses a Manager pattern to divide the cache into $N$ independent shards, reducing lock contention and improving performance on multi-core systems.
-- Consistent Hashing: Implements a Hash Ring with Virtual Nodes to ensure uniform data distribution across shards.
-- Durability (AOF): Append-Only File persistence with bufio buffering and background synchronization to ensure data survives server restarts.
-- LRU Eviction: O(1) Least Recently Used eviction policy using a doubly linked list and a hash map.
-- Active Janitor: A background goroutine that periodically sweeps and reaps expired items to prevent memory bloat.
+- Sharded Architecture: Uses a custom Hash Ring to distribute keys across multiple LRU shards, minimizing mutex contention for high-concurrency workloads.
+- Binary-Safe Persistence: Implements an Append-Only File (AOF) that stores raw bytes, avoiding the common JSON float64 precision loss.
+- Log Compaction: Background process to rewrite the AOF, keeping the disk footprint minimal by removing expired or overwritten keys.
+- Production-Ready Client: A Go SDK supporting generic GetAs[T] types for seamless struct unmarshaling.
+- Dockerized: Multi-stage builds for a tiny, portable footprint.
+
+## Tech Stack
+- Language: Go 1.25+
+- Storage: In-memory LRU with `sync.RWMutex` sharding.
+- API: RESTful JSON/Base64.
+- Deployment: Docker / Docker Hub.
 
 ## Architecture
 
@@ -32,6 +39,25 @@ The cache employs a dual-eviction strategy:
 
 ## Usage
 
+### Run with Docker
+```
+docker run -p 8080:8080 -v $(pwd):/app/data hiroki111/sharded-lru-cache:v1.0.0
+```
+
+### Use the Go Client
+```
+c := client.NewClient("http://localhost:8080")
+
+// Store complex structs
+user := User{ID: 1, Name: "Alice"}
+c.Set("user:1", user, 10*time.Minute)
+
+// Retrieve with full type safety
+val, _ := client.GetAs[User](c, "user:1")
+fmt.Println(val.Name) // Alice
+```
+
+### Run locally
 ```
 # Run the server
 go run cmd/cache-server/main.go
@@ -39,65 +65,26 @@ go run cmd/cache-server/main.go
 # Open another terminal
 
 # Set a value
-curl -X POST http://localhost:8080/set \
-     -d '{"key": "golang", "value": "is awesome", "ttl": 10}'
+# QmF0bWFu is "Batman" in Base64
+curl -s -X POST http://localhost:8080/set -d '{"key": "hero", "value": "QmF0bWFu", "ttl": 3600}'
 
 # Get the value
-curl "http://localhost:8080/get?key=golang"
+curl "http://localhost:8080/get?key=hero"
 
 # Get stats
 curl "http://localhost:8080/stats"
 
 # Run all tests
-go test ./internal/...
+go test ./...
 
 # Run benchmarks to see sharding performance
-go test -bench=. ./internal/shard/
+go test -bench=. ./pkg/shard/
 ```
 
-## Benchmark
-
-LRU Cache
-```
-go test -bench=. ./internal/lru/
-goos: linux
-goarch: amd64
-pkg: github.com/Hiroki111/sharded-lru-cache/internal/lru
-cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
-BenchmarkLRU_Set-4      13053570                92.61 ns/op
-```
-
-Sharded LRU Cache - 1 shard
-```
-goos: linux
-goarch: amd64
-pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
-cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
-BenchmarkShardedCache_Parallel-4         2758726               459.9 ns/op
-```
-
-Sharded LRU Cache - 32 shards
-```
-goos: linux
-goarch: amd64
-pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
-cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
-BenchmarkShardedCache_Parallel-4         5563995               219.2 ns/op
-```
-
-Sharded LRU Cache - 1024 shards
-```
-goos: linux
-goarch: amd64
-pkg: github.com/Hiroki111/sharded-lru-cache/internal/shard
-cpu: 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
-BenchmarkShardedCache_Parallel-4         5569131               239.1 ns/op
-```
-
-## Engineering Trade-offs
-- AOF vs Snapshots: I chose AOF for higher durability. While it results in larger files, it ensures that every write is captured.
-- Buffered Writing: Used bufio.Writer to turn expensive Disk I/O into cheap RAM-to-RAM copies, flushing to disk asynchronously to maintain high throughput.
-- Base64 Encoding: Implemented to guarantee that the line-delimited AOF format remains robust even when storing binary data or complex JSON objects.
+## Design Decisions & Trade-offs
+- Why []byte over interface{}? To ensure the server remains "type-blind," allowing it to store any data format without losing numerical precision during JSON unmarshaling, while maximizing CPU usage in the server side.
+- Why HTTP over gRPC? For maximum compatibility with web-based microservices while keeping the implementation simple and debuggable via curl.
+- AOF Recovery: On startup, the server re-scans the AOF to rebuild the memory state, ensuring data durability against process crashes.
 
 ## Future Enhancement Ideas
 - Raft/Paxos: To make it a truly distributed cluster across multiple machines.

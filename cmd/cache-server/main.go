@@ -13,6 +13,8 @@ import (
 	"github.com/Hiroki111/sharded-lru-cache/pkg/shard"
 )
 
+const aofPath = "data/cache.aof"
+
 type Server struct {
 	cache *shard.CacheManager[string, any]
 }
@@ -97,7 +99,7 @@ func main() {
 	var maxAofSize int64 = 50 * 1024 * 1024 // 50 MB
 
 	// 2. Initialization
-	mgr, err := shard.NewCacheManager[string, any](32, 1024, 3, "cache.aof", maxAofSize)
+	mgr, err := shard.NewCacheManager[string, any](32, 1024, 3, aofPath, maxAofSize)
 	if err != nil {
 		// Use log.Fatalf for critical startup errors
 		log.Fatalf("Critical Error: Failed to initialize cache manager: %v", err)
