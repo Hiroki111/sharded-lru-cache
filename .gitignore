@@ -1,3 +1,9 @@
-.vscode/*
+# IDE
+.vscode/
+
+# Binary
 cache-server
-data/cache.aof
+
+# Data and Logs
+data/
+*.aof

@@ -1,5 +1,13 @@
-data/cache.aof
-cache-server
+# Logic: Exclude anything that isn't source code or dependency manifests
 .git
+Dockerfile
+.dockerignore
+.vscode/
+
+# Binaries and local artifacts
+cache-server
+**/cache.aof
+
+# Scripts and non-production folders
 tests/
 test_recovery.sh
