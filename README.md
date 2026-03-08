@@ -26,7 +26,7 @@ A high-performance, distributed-ready in-memory cache written in Go, featuring A
 ## Architecture
 
 ### The Hash Ring
-To avoid "Cache Stampedes" and ensure high availability, the system uses consistent hashing. By mapping shards to a circular hash space, we minimize the amount of data remapping required if the shard count changes.
+To avoid "Cache Stampedes" and ensure high availability, the system uses consistent hashing. By mapping shards to a circular hash space, the amount of data remapping required can be minimized if the shard count changes.
 
 ### Persistence Layer
 The AOF (Append-Only File) utilizes JSON + Base64 serialization. This allows complex structs to be stored as single, safe strings on disk, preventing file corruption from special characters or newlines in the data.
@@ -67,6 +67,9 @@ fmt.Println(val.Name) // Alice
 
 ### Run locally
 ```
+# Create the data directory first
+mkdir -p data
+
 # Run the server
 go run cmd/cache-server/main.go
 
@@ -90,7 +93,7 @@ go test -bench=. ./pkg/shard/
 ```
 
 ## Design Decisions & Trade-offs
-- Why []byte over interface{}? To ensure the server remains "type-blind," allowing it to store any data format without losing numerical precision during JSON unmarshaling, while maximizing CPU usage in the server side.
+- Why []byte over interface{}? Beyond type safety, this offloads the CPU-intensive work of Marshaling/Unmarshaling to the Clients. The server remains a "dumb pipe," allowing it to scale linearly with network bandwidth rather than being bottlenecked by JSON parsing.
 - Why HTTP over gRPC? For maximum compatibility with web-based microservices while keeping the implementation simple and debuggable via curl.
 - AOF Recovery: On startup, the server re-scans the AOF to rebuild the memory state, ensuring data durability against process crashes.
 
