@@ -48,6 +48,13 @@ docker build -t sharded-lru-cache .
 docker run -p 8080:8080 -v $(pwd)/data:/app/data sharded-lru-cache
 ```
 
+### Update Docker image
+```
+# Change "v1.0.0" to the actual version you use
+docker build -t hiroki111/sharded-lru-cache:v1.0.0 .
+docker push hiroki111/sharded-lru-cache:v1.0.0
+```
+
 ### Use the Go Client
 ```
 c := client.NewClient("http://localhost:8080")
