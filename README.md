@@ -41,7 +41,11 @@ The cache employs a dual-eviction strategy:
 
 ### Run with Docker
 ```
-docker run -p 8080:8080 -v $(pwd):/app/data hiroki111/sharded-lru-cache:v1.0.0
+# Build
+docker build -t sharded-lru-cache .
+
+# Run with persistent storage
+docker run -p 8080:8080 -v $(pwd)/data:/app/data sharded-lru-cache
 ```
 
 ### Use the Go Client
